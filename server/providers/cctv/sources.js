@@ -1622,8 +1622,6 @@ export async function loadTrafikverketSourcesFromOpenData() {
   <QUERY objectType="Camera" schemaVersion="1">
     <FILTER>
       <EQ name="Active" value="true" />
-      <EXISTS name="Geometry.WGS84" value="true" />
-      <EXISTS name="PhotoUrl" value="true" />
     </FILTER>
     <INCLUDE>Id</INCLUDE>
     <INCLUDE>Name</INCLUDE>
@@ -1648,7 +1646,8 @@ export async function loadTrafikverketSourcesFromOpenData() {
     });
 
     if (!resp.ok) {
-      console.warn('[CCTV] Trafikverket download failed:', resp.status);
+      const errText = await resp.text().catch(() => '');
+      console.warn(`[CCTV] Trafikverket download failed: ${resp.status} (${errText.slice(0, 100)})`);
       return [];
     }
 
