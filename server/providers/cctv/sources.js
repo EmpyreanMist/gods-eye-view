@@ -1600,7 +1600,6 @@ export async function loadCalgarySourcesFromOpenData() {
   }
 }
 
-
 /**
  * Load Trafikverket traffic and road weather cameras.
  *
@@ -1634,7 +1633,7 @@ export async function loadTrafikverketSourcesFromOpenData() {
     <INCLUDE>Description</INCLUDE>
     <INCLUDE>Direction</INCLUDE>
   </QUERY>
-</REQUEST>`.replace('${apiKey}', apiKey);
+</REQUEST>`;
 
   try {
     const resp = await fetch(TRAFIKVERKET_DATA_URL, {
@@ -1649,32 +1648,44 @@ export async function loadTrafikverketSourcesFromOpenData() {
 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
-      console.warn(`[CCTV] Trafikverket download failed: ${resp.status} (${errText.slice(0, 100)})`);
+      console.warn(
+        `[CCTV] Trafikverket download failed: ${resp.status} (${errText.slice(0, 100)})`,
+      );
       return [];
     }
 
     const payload = await resp.json();
-    const resultItem = Array.isArray(payload?.RESPONSE?.RESULT) ? payload.RESPONSE.RESULT[0] : null;
-    const cameraRows = Array.isArray(resultItem?.Camera) ? resultItem.Camera : [];
+    const resultItem = Array.isArray(payload?.RESPONSE?.RESULT)
+      ? payload.RESPONSE.RESULT[0]
+      : null;
+    const cameraRows = Array.isArray(resultItem?.Camera)
+      ? resultItem.Camera
+      : [];
 
     const cameras = [];
     for (const item of cameraRows) {
       if (!item || !item.Id || !item.PhotoUrl) continue;
 
-      const wgs84 = typeof item.Geometry?.WGS84 === 'string' ? item.Geometry.WGS84 : '';
+      const wgs84 =
+        typeof item.Geometry?.WGS84 === 'string' ? item.Geometry.WGS84 : '';
       const geom = parsePointString(wgs84);
       if (!isLikelySwedenCoordinate(geom.lat, geom.lon)) continue;
 
       const cameraId = String(item.Id).trim();
       const stableId = `se-trafikverket-${cameraId}`.toLowerCase();
-      
-      const isVvis = String(item.Type || '').toLowerCase().includes('väglag');
+
+      const isVvis = String(item.Type || '')
+        .toLowerCase()
+        .includes('väglag');
       const provider = isVvis ? 'Trafikverket VViS' : 'Trafikverket';
 
-      const hasDirection = typeof item.Direction === 'number' && Number.isFinite(item.Direction);
-      
+      const hasDirection =
+        typeof item.Direction === 'number' && Number.isFinite(item.Direction);
+
       // Trafikverket's standard headings are available on some cameras. Leave blank otherwise.
-      const headingDeg = hasDirection ? ((item.Direction % 360) + 360) % 360 : fallbackHeadingFromId(stableId);
+      const headingDeg = hasDirection
+        ? ((item.Direction % 360) + 360) % 360
+        : fallbackHeadingFromId(stableId);
       const headingConfidence = hasDirection ? 'high' : 'low';
 
       cameras.push({
@@ -1702,25 +1713,31 @@ export async function loadTrafikverketSourcesFromOpenData() {
       });
     }
 
-    const maxRaw = Number(process.env.CCTV_TRAFIKVERKET_MAX_SOURCES || DEFAULT_TRAFIKVERKET_MAX_SOURCES);
+    const maxRaw = Number(
+      process.env.CCTV_TRAFIKVERKET_MAX_SOURCES ||
+        DEFAULT_TRAFIKVERKET_MAX_SOURCES,
+    );
     const maxCount = Number.isFinite(maxRaw)
       ? Math.max(8, Math.floor(maxRaw))
       : DEFAULT_TRAFIKVERKET_MAX_SOURCES;
 
     const unique = Array.from(
-      new Map(cameras.map((cam) => [cam.id, cam])).values()
+      new Map(cameras.map((cam) => [cam.id, cam])).values(),
     );
-    const prioritized = prioritizeSources(unique, maxCount, TRAFIKVERKET_ANCHORS);
+    const prioritized = prioritizeSources(
+      unique,
+      maxCount,
+      TRAFIKVERKET_ANCHORS,
+    );
     console.log(
-      `[CCTV] Loaded Trafikverket camera sources: ${unique.length} (using nearest ${prioritized.length})`
+      `[CCTV] Loaded Trafikverket camera sources: ${unique.length} (using nearest ${prioritized.length})`,
     );
     return prioritized;
-
   } catch (error) {
     if (error.name !== 'AbortError') {
       console.warn(
         '[CCTV] Trafikverket source pack query failed:',
-        error?.message || error
+        error?.message || error,
       );
     }
     return [];

@@ -140,6 +140,60 @@ test('Trafikverket loader handles upstream failures gracefully', async () => {
   }
 });
 
+test('Trafikverket loader makes correct POST request with valid XML syntax and avoids logging API key', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  let requestedUrl = null;
+  let requestedOptions = null;
+  const loggedMessages = [];
+
+  console.warn = (...args) => {
+    loggedMessages.push(args.join(' '));
+  };
+
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = url;
+    requestedOptions = options;
+    return new Response(
+      JSON.stringify({
+        RESPONSE: {
+          RESULT: [{ Camera: [camera('999')] }]
+        }
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
+
+  const originalKey = process.env.CCTV_TRAFIKVERKET_API_KEY;
+  process.env.CCTV_TRAFIKVERKET_API_KEY = 'secret-api-key-123';
+
+  try {
+    const result = await loadTrafikverketSourcesFromOpenData();
+    assert.equal(result.length, 1);
+    
+    // 1. Verify request URL
+    assert.equal(requestedUrl, 'https://api.trafikinfo.trafikverket.se/v2/data.json');
+    
+    // 2. Verify POST method
+    assert.equal(requestedOptions.method, 'POST');
+    
+    // 3. Verify XML body syntax
+    const body = requestedOptions.body;
+    assert.ok(body.includes('<REQUEST>'), 'body should have REQUEST tag');
+    assert.ok(body.includes('<LOGIN authenticationkey="secret-api-key-123"/>'), 'body should include LOGIN with authenticationkey');
+    assert.ok(body.includes('<QUERY objecttype="Camera" schemaversion="1">'), 'body should include QUERY with objecttype and schemaversion');
+    assert.ok(body.includes('<EQ name="Active" value="true" />'), 'body should include Active filter');
+
+    // 4. Verify API key is never logged
+    for (const msg of loggedMessages) {
+      assert.equal(msg.includes('secret-api-key-123'), false, 'API key must not appear in any log');
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+    if (originalKey === undefined) delete process.env.CCTV_TRAFIKVERKET_API_KEY;
+    else process.env.CCTV_TRAFIKVERKET_API_KEY = originalKey;
+  }
 test('Trafikverket loader honors max source cap', async () => {
   const manyCameras = Array.from({ length: 20 }, (_, i) => camera(String(i)));
   const result = await loadWith(manyCameras, {
@@ -147,6 +201,8 @@ test('Trafikverket loader honors max source cap', async () => {
   });
 
   assert.equal(result.length, 8);
+});
+
 });
 
 test('isLikelySwedenCoordinate spans Sweden and rejects elsewhere', () => {
