@@ -1618,10 +1618,12 @@ export async function loadTrafikverketSourcesFromOpenData() {
 
   // Instructs Trafikverket to return only active cameras and the fields we need.
   const query = `<REQUEST>
-  <LOGIN authenticationKey="\${apiKey}"/>
-  <QUERY objectType="Camera" schemaVersion="1">
+  <LOGIN authenticationkey="${apiKey}"/>
+  <QUERY objecttype="Camera" schemaversion="1">
     <FILTER>
       <EQ name="Active" value="true" />
+      <EXISTS name="Geometry.WGS84" value="true" />
+      <EXISTS name="PhotoUrl" value="true" />
     </FILTER>
     <INCLUDE>Id</INCLUDE>
     <INCLUDE>Name</INCLUDE>
